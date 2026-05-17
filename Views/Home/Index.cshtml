@@ -1,0 +1,128 @@
+@model IEnumerable<TodoApp.Models.TodoItem>
+@using TodoApp.Models
+@{
+    ViewData["Title"] = "Lista mea";
+    var filter = ViewBag.Filter as string ?? "all";
+    var sort   = ViewBag.Sort   as string ?? "date";
+    int total     = ViewBag.Total;
+    int completed = ViewBag.Completed;
+    int active    = total - completed;
+}
+
+<div class="page-header">
+    <div>
+        <h1>Lista mea</h1>
+        <p class="subtitle">@active active · @completed completate</p>
+    </div>
+    <div class="progress-ring" title="@(total > 0 ? (completed * 100 / total) : 0)% complet">
+        <svg viewBox="0 0 36 36">
+            <circle class="ring-bg" cx="18" cy="18" r="15.9" />
+            @if (total > 0)
+            {
+                var pct = (double)completed / total;
+                var dash = pct * 100;
+                <circle class="ring-fill" cx="18" cy="18" r="15.9"
+                        style="stroke-dasharray:@dash.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) 100" />
+            }
+        </svg>
+        <span>@(total > 0 ? (completed * 100 / total) : 0)%</span>
+    </div>
+</div>
+
+<!-- Formular adăugare task -->
+<div class="card add-card">
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+        <div class="input-row">
+            <input name="Title" placeholder="Ce ai de făcut?" required maxlength="200" autocomplete="off" />
+            <select name="Priority">
+                <option value="0">🟢 Scăzut</option>
+                <option value="1" selected>🟡 Normal</option>
+                <option value="2">🔴 Ridicat</option>
+            </select>
+            <button type="submit" class="btn btn-primary">+ Adaugă</button>
+        </div>
+        <input name="Description" placeholder="Descriere opțională…" class="desc-input" maxlength="1000" />
+    </form>
+</div>
+
+<!-- Filtre & Sortare -->
+<div class="toolbar">
+    <div class="filters">
+        <a asp-action="Index" asp-route-filter="all"       asp-route-sort="@sort" class="chip @(filter=="all"?"active":"")">Toate (@total)</a>
+        <a asp-action="Index" asp-route-filter="active"    asp-route-sort="@sort" class="chip @(filter=="active"?"active":"")">Active (@active)</a>
+        <a asp-action="Index" asp-route-filter="completed" asp-route-sort="@sort" class="chip @(filter=="completed"?"active":"")">Completate (@completed)</a>
+    </div>
+    <div class="sorts">
+        <a asp-action="Index" asp-route-filter="@filter" asp-route-sort="date"     class="sort-btn @(sort=="date"?"active":"")">↓ Dată</a>
+        <a asp-action="Index" asp-route-filter="@filter" asp-route-sort="priority" class="sort-btn @(sort=="priority"?"active":"")">↓ Prioritate</a>
+        <a asp-action="Index" asp-route-filter="@filter" asp-route-sort="title"    class="sort-btn @(sort=="title"?"active":"")">↓ Titlu</a>
+    </div>
+</div>
+
+<!-- Lista task-uri -->
+@if (!Model.Any())
+{
+    <div class="empty-state">
+        <span class="empty-icon">📋</span>
+        <p>Niciun task. Adaugă primul tău task mai sus!</p>
+    </div>
+}
+else
+{
+    <ul class="todo-list">
+        @foreach (var item in Model)
+        {
+            <li class="todo-item @(item.IsCompleted ? "done" : "") priority-@item.Priority.ToString().ToLower()">
+                <!-- Toggle completat -->
+                <form asp-action="Toggle" asp-route-id="@item.Id" method="post" class="toggle-form">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="checkbox" aria-label="Marchează ca @(item.IsCompleted ? "necompletат" : "completat")">
+                        @if (item.IsCompleted) { <span>✓</span> }
+                    </button>
+                </form>
+
+                <!-- Conținut -->
+                <div class="todo-content">
+                    <span class="todo-title">@item.Title</span>
+                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                    {
+                        <span class="todo-desc">@item.Description</span>
+                    }
+                    <div class="todo-meta">
+                        <span class="priority-badge priority-@item.Priority.ToString().ToLower()">
+                            @(item.Priority == Priority.High ? "🔴" : item.Priority == Priority.Low ? "🟢" : "🟡")
+                            @item.Priority
+                        </span>
+                        <span class="date">
+                            @(item.IsCompleted && item.CompletedAt.HasValue
+                                ? "✓ " + item.CompletedAt.Value.ToString("dd MMM HH:mm")
+                                : "📅 " + item.CreatedAt.ToString("dd MMM HH:mm"))
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Acțiuni -->
+                <div class="todo-actions">
+                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-icon" title="Editează">✏️</a>
+                    <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                          onsubmit="return confirm('Ștergi task-ul «@item.Title»?')">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-icon btn-danger" title="Șterge">🗑️</button>
+                    </form>
+                </div>
+            </li>
+        }
+    </ul>
+
+    @if (completed > 0)
+    {
+        <div class="bottom-bar">
+            <form asp-action="ClearCompleted" method="post"
+                  onsubmit="return confirm('Ștergi toate task-urile completate?')">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-ghost">🧹 Șterge completate (@completed)</button>
+            </form>
+        </div>
+    }
+}
